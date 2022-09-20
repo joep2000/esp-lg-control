@@ -1,27 +1,16 @@
 esphome:
   name: esp-wp-control
-  on_boot:
-    priority: 200
-    then:
-      lambda: !lambda |-
-          //set initial states
-          id(relay1).turn_off();
-          if (id(toon_signal).state) {
-            id(relay2).turn_on();
-          } else {
-            id(relay2).turn_off();
-          }
 
 packages:
   config_values: !include config/config.yaml
 
 # Enable logging. Disable modbus controller debug messages
 logger:
-  logs:
-    modbus_controller.sensor: WARN
-    modbus_controller.output: WARN
-    esp32.preferences: WARN
-    sensor: WARN
+#  logs:
+#   modbus_controller.sensor: WARN
+#   modbus_controller.output: WARN     
+#   esp32.preferences: WARN
+#   sensor: WARN
 
 globals:
   - id: stooklijn_target
@@ -32,28 +21,24 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'true'
-  - id: working_mode
-    type: int
-    restore_value: no
-    initial_value: '0'
-  - id: var_pendel_watertemp_target
-    type: float
-    restore_value: no
-    initial_value: '30'
-  - id: run_start
-    type: bool
-    restore_value: no
-    initial_value: 'false'
+  # - id: var_pendel_watertemp_target
+  #   type: float
+  #   restore_value: no
+  #   initial_value: '30'
+  # - id: run_start
+  #   type: bool
+  #   restore_value: no
+  #   initial_value: 'false'
 
 number:
   - platform: template
-    name: "Stooklijn offset"
-    id: wp_stooklijn_offset
-    min_value: -5
-    max_value: 5
-    initial_value: 0
+    id: stooklijn_min_oat
+    name: "Stooklijn Minimum Buitentemperatuur"
+    min_value: -15
+    max_value: 4
     step: 1
     restore_value: yes
+    initial_value: -5
     unit_of_measurement: "°C"
     optimistic: true
     set_action:
@@ -61,13 +46,13 @@ number:
         - lambda: |-
             id(force_update_stooklijn) = true;
   - platform: template
-    id: stooklijn_min_oat
-    name: "Stooklijn Minimum Buitentemperatuur"
-    min_value: -25
-    max_value: 0
+    id: stooklijn_max_oat
+    name: "Stooklijn Maximum Buitentemperatuur"
+    min_value: 5
+    max_value: 20
     step: 1
     restore_value: yes
-    initial_value: -15
+    initial_value: 13
     unit_of_measurement: "°C"
     optimistic: true
     set_action:
@@ -77,11 +62,11 @@ number:
   - platform: template
     id: stooklijn_max_wtemp
     name: "Stooklijn Maximum Watertemperatuur"
-    min_value: 40
-    max_value: 60
+    min_value: 31
+    max_value: 50
     step: 1
     restore_value: yes
-    initial_value: 55
+    initial_value: 35
     unit_of_measurement: "°C"
     optimistic: true
     set_action:
@@ -90,79 +75,34 @@ number:
             id(force_update_stooklijn) = true;
   - platform: template
     id: stooklijn_min_wtemp
-    name: "Verwarming Minimum Watertemperatuur"
-    min_value: 20
-    max_value: 35
+    name: "Stooklijn Minimum Watertemperatuur"
+    min_value: 26
+    max_value: 30
     step: 1
     restore_value: yes
-    initial_value: 20
+    initial_value: 28
     unit_of_measurement: "°C"
     optimistic: true
     set_action:
       then:
         - lambda: |-
             id(force_update_stooklijn) = true;
-  - platform: template
-    id: cooling_target_wtemp
-    name: "Koelmodus Watertemperatuur"
-    min_value: 16
-    max_value: 20
-    step: 1
-    restore_value: yes
-    initial_value: 18
-    unit_of_measurement: "°C"
-    optimistic: true
-    set_action:
-      then:
-        - lambda: |-
-            id(force_update_stooklijn) = true;
+  # - platform: template
+  #   id: cooling_target_wtemp
+  #   name: "Koelmodus Watertemperatuur"
+  #   min_value: 16
+  #   max_value: 20
+  #   step: 1
+  #   restore_value: yes
+  #   initial_value: 18
+  #   unit_of_measurement: "°C"
+  #   optimistic: true
+  #   set_action:
+  #     then:
+  #       - lambda: |-
+  #           id(force_update_stooklijn) = true;
 
-switch:
-  - platform: gpio
-    name: "WP Cool"
-    pin: 18
-    id: relay1
-    interlock: &interlock_group [relay1, relay2]
-    interlock_wait_time: 2000ms
-    restore_mode: RESTORE_DEFAULT_OFF
-    on_turn_off:
-      then:
-        - lambda: |-
-            // update working mode
-            id(working_mode) = 0;
-    on_turn_on:
-      then:
-        - lambda: |-
-            // update working mode
-            id(working_mode) = 1;
-            id(run_start) = true;
-  - platform: gpio
-    name: "WP Heat"
-    pin: 19
-    id: relay2
-    interlock: *interlock_group
-    interlock_wait_time: 20s
-    restore_mode: RESTORE_DEFAULT_OFF
-    on_turn_off:
-      then:
-        - lambda: |-
-            // update working mode
-            id(working_mode) = 0;
-    on_turn_on:
-      then:
-        - lambda: |-
-            // update working mode
-            id(working_mode) = 2;
-            id(run_start) = true;
 
-# Eneco Toon anti pendel script. Toon sometimes temporarily switches the output off, while heat is still needed
-# This script delays switching the heating of for 5 minutes. If heating switches back on within this timeframe the script stops
-script:
-  - id: anti_pendel
-    mode: restart
-    then:
-      - delay: 300s
-      - switch.turn_off: relay2
 
 modbus:
   id: modbus_lg
@@ -170,19 +110,19 @@ modbus:
   send_wait_time: 200ms
   
 uart:
-  tx_pin: GPIO26
-  rx_pin: GPIO25
-  baud_rate: 9600
   id: uart_modbus
+  tx_pin: GPIO12
+  rx_pin: GPIO13
+  baud_rate: 9600
   parity: none
   data_bits: 8
   stop_bits: 1
 
 modbus_controller:
   - id: lg
-    address: 0x1 # the Modbus device addr
+    address: 0x1            # the Modbus device addr
     modbus_id: modbus_lg
-    update_interval: 20s #this is our main 'clock' all dependel logic follows this pace
+    update_interval: 10s    #this is our main 'clock' all dependel logic follows this pace
     setup_priority: -10
 
 output:
@@ -195,28 +135,6 @@ output:
     multiply: 1000
 
 binary_sensor:
-  - platform: gpio # Toon input signal is connected to this input pin
-    pin:
-      number: GPIO27
-      mode:
-        input: true
-        pullup: false
-    name: "WP Toon Signal"
-    id: toon_signal
-    filters:
-      - delayed_on: 500ms # Debounce
-    on_press:
-      - switch.turn_on: relay2
-      - script.stop: anti_pendel # Anti pendel script, to delay switch off for 5 minutes
-    on_release:
-      - script.execute: anti_pendel
-  - platform: modbus_controller
-    modbus_controller_id: lg
-    name: "Silent Mode"
-    id: silent_mode
-    register_type: discrete_input
-    skip_updates: 3
-    address: 7
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "Pump Running"
@@ -231,6 +149,10 @@ binary_sensor:
     register_type: discrete_input
     skip_updates: 3
     address: 3
+    # on_turn_on:
+    #   then:
+    #     - lambda: |-
+    #         id(run_start) = true;
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "Defrosting"
@@ -238,8 +160,38 @@ binary_sensor:
     register_type: discrete_input
     skip_updates: 3
     address: 4
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "DHW mode"
+    id: dhw_mode
+    register_type: discrete_input
+    skip_updates: 3
+    address: 5
+  # - platform: modbus_controller
+  #   modbus_controller_id: lg
+  #   name: "Silent Mode"
+  #   id: silent_mode
+  #   register_type: discrete_input
+  #   skip_updates: 3
+  #   address: 7
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "Cooling mode"
+    id: cooling_mode
+    register_type: discrete_input
+    skip_updates: 3
+    address: 8
+    filters:
+      - invert:
     
 sensor:
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "Bedrijfsmodus"
+    id: bedrijfsmodus
+    register_type: read
+    address: 1
+    value_type: U_WORD
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "Water retour"
@@ -265,115 +217,113 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            //Main program logic this loop runs every 'clock' cycle when modbus data is received for this sensor
-            static int alive_timer = 0;
-            if(alive_timer == 0){
-              // post an 'alive' debug message in the logs every 300 seconds
-              alive_timer = 16; //300 seconds
-              ESP_LOGD("anti-pendel", "**alive** oat: %f inlet: %f outlet: %f ",id(buiten_temp).state,id(water_temp_retour).state,x);
-            }
-            alive_timer--;
-            
+            //Main program logic this loop runs every 'clock' cycle when modbus data is received for this sensor            
             //Do not run script if working mode = 0
-            if(id(working_mode) == 0) return;
+            if(id(bedrijfsmodus).state != 2 || id(dhw_mode).state) return;
+
             
-            // hold previous script run ota value to check if it changed since last run
-            static float prev_oat = 0;
-            //pre run time
-            static int pre_run_time = 0;
-            //new anti-pendel target
-            float temp_new_target = id(var_pendel_watertemp_target);
-            //system logic (to switch off after target is reached)
-            static bool target_reached = false;
+            static float prev_oat = 0;                                 // hold previous script run ota value to check if it changed since last run
+            // static int pre_run_time = 0;                               //pre run time
+            float temp_new_target = id(watertemp_target).state;   //new anti-pendel target
+            static bool target_reached = false;                        //system logic (to switch off after target is reached)
             
-            // calculate stooklijn target
+
+
+                // ----------------calculate stooklijn target---------------------------------
             float oat = round(id(buiten_temp).state);
-            // if no oat change, no update needed, unless forced or first run
-            if(prev_oat != oat || id(force_update_stooklijn) || id(run_start)){
+
+            if(prev_oat != oat || id(force_update_stooklijn)){      // if no oat change, no update needed, unless forced or first run
               prev_oat = oat;
-              //reset force boolean
-              id(force_update_stooklijn) = false;
-              if(id(working_mode) == 1){
-                //Cooling
-                ESP_LOGD("stooklijn", "Stooklijn, working mode is cooling");
-                id(stooklijn_target) = id(cooling_target_wtemp).state;
-              } else {
-                //Heating
-                //formula is wTemp = -Z x (OAT-20) + 20
-                //formula to calculate -Z = ((wTempMax-20) / (OATMin - 20))
-                const float Z = ((float)id(stooklijn_max_wtemp).state-20)/(float)(((float)id(stooklijn_min_oat).state) - 20);
-                ESP_LOGD("stooklijn", "Stooklijn, working mode is heating, with oat: %f, Z: %f",oat, Z);
-                if(oat < id(stooklijn_min_oat).state) {
-                  //if oat below minimum oat, clamp to minimum value
-                  oat = id(stooklijn_min_oat).state;
-                } else if (oat > 20) {
-                  //if oat above max value, clamp to maximum value
-                  oat = 20;
-                }
-                id(stooklijn_target) = (int)round((Z * (oat-20))+20);
-                if(id(stooklijn_target) > id(stooklijn_max_wtemp).state) id(stooklijn_target) = id(stooklijn_max_wtemp).state;
-                //minimum water temp when in heating mode (in case of radiators)
-                if(id(stooklijn_target) < id(stooklijn_min_wtemp).state) id(stooklijn_target) = id(stooklijn_min_wtemp).state;
+              id(force_update_stooklijn) = false;                       //reset force boolean
+              
+                  //Heating
+                  //formula is wTemp = Z x (oat - twmin) + twmax
+                  //formula to calculate Z = (twmin - twmax) / (oatmax - oatmin)
+              const float Z = ((float)id(stooklijn_min_wtemp).state-(float)id(stooklijn_max_wtemp).state) / ((float)id(stooklijn_max_oat).state - (float)id(stooklijn_min_oat).state);
+              ESP_LOGD("stooklijn", "Stooklijn, working mode is heating, with oat: %f, Z: %f",oat, Z);
+              if(oat < id(stooklijn_min_oat).state) {                       //if oat below minimum oat, clamp to minimum value
+                oat = id(stooklijn_min_oat).state;
+              } else if(oat > id(stooklijn_max_oat).state) {                //if oat above max value, clamp to maximum value
+                oat = id(stooklijn_max_oat).state;
               }
+              id(stooklijn_target) = (int)round(Z * (oat - id(stooklijn_min_oat).state) + id(stooklijn_max_wtemp).state);
+              // if(id(stooklijn_target) > id(stooklijn_max_wtemp).state) id(stooklijn_target) = id(stooklijn_max_wtemp).state;  #not necessary
+              // if(id(stooklijn_target) < id(stooklijn_min_wtemp).state) id(stooklijn_target) = id(stooklijn_min_wtemp).state;
+              
               ESP_LOGD("stooklijn", "New stooklijn target value (after correction): %f", id(stooklijn_target));
-              //publish new stooklijn value to watertemp value sensor
-              id(watertemp_target).publish_state(id(stooklijn_target));
+              id(watertemp_target).publish_state(id(stooklijn_target));              //publish new stooklijn value to watertemp value sensor
             }
           
-            // calculate new (anti pendel) target
-            // very basic algorithm
-            // it initializes at the start of a run (when working mode changes tot 1 or 2)
-            // then sets initial target to 'real' target, to allow HP to start up
-            // when the compressor turn on the logic start running, setting a new target at -1 degrees below actual when actual within 4 degrees of target
-            // when the new target equals the new target the logic stops, so the HP can take over again an run its own logic
-            // system resets at heating/cooling mode stop (system working mode 0) for example when the room thermostat stops the heating
-            if(id(run_start)){
-              //initialize values. run_start is set to true by the switches that control heating/cooling mode
-              pre_run_time = 4; // equals 80 seconds. Based on 20s 'clock'
-              //activate system
+
+
+                // ---------------------calculate new (anti pendel) target---------------------------------
+
+                // very basic algorithm
+                // it initializes at the start of a run (at compressor startup)
+                // when the compressor turn on the logic start running, setting a new target at the nearest higher .5 degrees
+                // when the new target equals the new target the logic stops, so the HP can take over again and run its own logic
+                // system resets at compressor stop
+
+            // if(id(run_start)){
+            //       //initialize values. run_start is set to true by the switches that control heating/cooling mode
+            //   # pre_run_time = 7;                                  // equals 70 seconds. Based on 10s 'clock'
+            //   target_reached = false;                           //activate system
+            //   # id(water_temp_target_output).set_level(id(stooklijn_target)*0.01);        //(set level needs value between 0-1, so divide by 100)
+            //   ESP_LOGD("anti-pendel", "Modbus initial target set: %f outlet: %f",id(stooklijn_target),id(water_temp_aanvoer).state);
+            //   id(run_start) = 0;
+            // }
+            
+            if((id(stooklijn_target) - id(water_temp_aanvoer).state) > 1){           // check if target is reached
               target_reached = false;
-              //Set initial target to trigger compressor startup (set level needs value between 0-1, so divide by 100)
-              id(water_temp_target_output).set_level(id(stooklijn_target)*0.01);
-              ESP_LOGD("anti-pendel", "Modbus initial target set: %f outlet: %f",id(stooklijn_target),x);
-              id(run_start) = 0;
+            } else {
+              target_reached = true;
             }
-            
-            const int delta = abs(id(stooklijn_target)-x);
-            //Run when compressor is running and target not reached and actual temp within 4 degrees of target
-            if(id(compressor_running).state && !target_reached && delta <= 4){
-              temp_new_target = ceil(x*2)/2;
-              if(id(working_mode) == 1) temp_new_target++;
-              else if(id(working_mode) == 2) temp_new_target = temp_new_target - 1.5;
-              //make sure value is not below target (cooling), or above target (heating)
-              if(id(working_mode) == 1 && temp_new_target < id(stooklijn_target)) temp_new_target = id(stooklijn_target);
-              else if(id(working_mode) == 2 && temp_new_target > id(stooklijn_target)) temp_new_target = id(stooklijn_target);
-              ESP_LOGD("anti-pendel", "RETURN_TEMP: %f OUTLET_TEMP: %f TARGET: %f PENDEL_TARGET: %f",id(water_temp_retour).state,x,id(stooklijn_target),temp_new_target);
-            } else if(!target_reached && pre_run_time > 0) {
+
+                //Run when compressor is running
+            if(id(compressor_running).state){
+              if(!target_reached) temp_new_target = ceil(id(water_temp_aanvoer).state*2)/2;
+              else temp_new_target = id(stooklijn_target);
+
+              if(temp_new_target > id(stooklijn_target)) temp_new_target = id(stooklijn_target);        //make sure value is below minimum, or above maximum
+              ESP_LOGD("anti-pendel", "RETURN_TEMP: %f OUTLET_TEMP: %f TARGET: %f PENDEL_TARGET: %f",id(water_temp_retour).state,id(water_temp_aanvoer).state,id(stooklijn_target),temp_new_target);
+              id(pendel_watertemp_target).publish_state(temp_new_target);                               //update sensor
+              id(water_temp_target_output).set_level(temp_new_target*0.01);             //update target through modbus (set level needs value between 0-1, so divide by 100)
+            } else if(!id(compressor_running).state) {
+              id(water_temp_target_output).set_level(id(stooklijn_target)*0.01);                        //(set level needs value between 0-1, so divide by 100)
+              target_reached = false;
               //update pre_run_time counter
-              ESP_LOGD("anti-pendel", "Waiting for pre_run_time: %i",pre_run_time);
-              pre_run_time--;
-            } else if(!target_reached) {
-              //waiting for delta te become within range
-              ESP_LOGD("anti-pendel", "Waiting for delta RETURN_TEMP: %f OUTLET_TEMP: %f DELTA: %i",id(water_temp_retour).state,x,delta);
+              //ESP_LOGD("anti-pendel", "Waiting for pre_run_time: %i",pre_run_time);
+              //if(pre_run_time > 0) pre_run_time--;
+
             }
-            
-            if(temp_new_target != id(var_pendel_watertemp_target)){
-              //set new target
-              id(var_pendel_watertemp_target) = temp_new_target;
-              //update sensor
-              id(pendel_watertemp_target).publish_state(id(var_pendel_watertemp_target));
-              //update target through modbus (set level needs value between 0-1, so divide by 100)
-              id(water_temp_target_output).set_level(id(var_pendel_watertemp_target)*0.01);
-              // ESP_LOGD("anti-pendel", "New pendel_watertemp_target set: %f outlet: %f",id(pendel_watertemp_target).state,x);
-              if(temp_new_target == id(stooklijn_target)){
-                //deactive system logic until next run
-                target_reached = true;
-                ESP_LOGD("anti-pendel", "Target reached, system inactive target: %f pendel_target: %f",id(stooklijn_target),id(pendel_watertemp_target).state);
-              }
-            }
+          
+
+            // if(temp_new_target != id(var_pendel_watertemp_target)){
+            //   id(var_pendel_watertemp_target) = temp_new_target;                                       //set new target
+            //   id(pendel_watertemp_target).publish_state(id(var_pendel_watertemp_target));              //update sensor
+            //   id(water_temp_target_output).set_level(id(var_pendel_watertemp_target)*0.01);            //update target through modbus (set level needs value between 0-1, so divide by 100)
+            //   // ESP_LOGD("anti-pendel", "New pendel_watertemp_target set: %f outlet: %f",id(pendel_watertemp_target).state,id(water_temp_aanvoer).state);
+            //   # if(temp_new_target == id(stooklijn_target)){
+            //   #       //deactive system logic until next run
+            //   #   target_reached = true;
+            //   #   ESP_LOGD("anti-pendel", "Target reached, system inactive target: %f pendel_target: %f",id(stooklijn_target),id(pendel_watertemp_target).state);
+            //   # }
+            // }
   - platform: modbus_controller
     modbus_controller_id: lg
-    name: "Garagetemperatuur"
+    name: "DHW tank"
+    id: water_temp_dhw
+    register_type: read
+    skip_updates: 4
+    address: 5
+    unit_of_measurement: "°C"
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "Tempbinnen"
     id: binnen_temp
     register_type: read
     address: 7
@@ -382,20 +332,20 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+  # - platform: modbus_controller
+  #   modbus_controller_id: lg
+  #   name: "Flow Rate"
+  #   id: current_flow_rate
+  #   register_type: read
+  #   address: 8
+  #   unit_of_measurement: "L/m"
+  #   value_type: U_WORD
+  #   accuracy_decimals: 1
+  #   filters:
+  #     - multiply: 0.1
   - platform: modbus_controller
     modbus_controller_id: lg
-    name: "Flow Rate"
-    id: current_flow_rate
-    register_type: read
-    address: 8
-    unit_of_measurement: "L/m"
-    value_type: U_WORD
-    accuracy_decimals: 1
-    filters:
-      - multiply: 0.1
-  - platform: modbus_controller
-    modbus_controller_id: lg
-    name: "Buitentemperatuur"
+    name: "Tempbuiten"
     id: buiten_temp
     register_type: read
     address: 12
@@ -404,13 +354,7 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
-  - platform: modbus_controller
-    modbus_controller_id: lg
-    name: "Bedrijfsmodus"
-    id: bedrijfsmodus
-    register_type: read
-    address: 1
-    value_type: U_WORD
+
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "Doeltemperatuur"
@@ -423,6 +367,19 @@ sensor:
     skip_updates: 3
     filters:
       - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "Doel DHW"
+    id: doel_dhw
+    register_type: holding
+    address: 8
+    unit_of_measurement: "°C"
+    value_type: U_WORD
+    accuracy_decimals: 1
+    skip_updates: 3
+    filters:
+      - multiply: 0.1
+
   - platform: template
     name: "Stooklijn Watertemp Target"
     id: watertemp_target
@@ -435,5 +392,3 @@ sensor:
     id: pendel_watertemp_target
     unit_of_measurement: "°C"
     update_interval: 3600s
-    lambda: |-
-        return round(id(var_pendel_watertemp_target)*10)/10;
