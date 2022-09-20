@@ -1,3 +1,5 @@
+fork from @alternate32 to work without TOON.
+
 ## esp-lg-control -> Hobby project!
 ESP8266 based controller for LG Therma V Monoblock Unit.
 Connects the LG to HomeAssistant and tries to optimise output modulation.
