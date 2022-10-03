@@ -133,6 +133,11 @@ output:
     address: 2
     value_type: U_WORD
     multiply: 1000
+  # - platform: modbus_controller
+  #   modbus_controller_id: lg
+  #   id: modbus_set_silent_mode
+  #   register_type: coil
+  #   address: 2
 
 binary_sensor:
   - platform: modbus_controller
@@ -220,6 +225,7 @@ sensor:
             //Main program logic this loop runs every 'clock' cycle when modbus data is received for this sensor            
             //Do not run script if working mode = 0
             if(id(bedrijfsmodus).state != 2 || id(dhw_mode).state) return;
+            if(isnan(id(buiten_temp).state)) return;
 
             
             static float prev_oat = 0;                                 // hold previous script run ota value to check if it changed since last run
@@ -273,16 +279,23 @@ sensor:
             //   id(run_start) = 0;
             // }
             
-            if((id(stooklijn_target) - id(water_temp_aanvoer).state) > 1){           // check if target is reached
+            if(((id(stooklijn_target) - id(water_temp_aanvoer).state) > 0) || (id(water_temp_aanvoer).state-id(water_temp_retour).state > 5)){           // check if target is reached
               target_reached = false;
             } else {
               target_reached = true;
             }
 
-                //Run when compressor is running
+                // ----------------------------------Run when compressor is running---------------------------------
             if(id(compressor_running).state){
-              if(!target_reached) temp_new_target = ceil(id(water_temp_aanvoer).state*2)/2;
-              else temp_new_target = id(stooklijn_target);
+              if(!target_reached){
+                // temp_new_target = round((id(water_temp_retour).state + id(water_temp_aanvoer).state) / 2 * 10) / 10;
+                // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
+                temp_new_target = round((id(water_temp_retour).state + (5*(id(water_temp_retour).state - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
+                if((temp_new_target-id(water_temp_retour).state) < 2) temp_new_target = id(water_temp_retour).state + 2;
+                // if((id(water_temp_aanvoer).state - temp_new_target) > 3) temp_new_target += 0.5;
+                // if((id(water_temp_aanvoer).state - id(stooklijn_target)) > 2) temp_new_target = id(water_temp_aanvoer).state - 2;
+              } else temp_new_target = id(stooklijn_target);
+
 
               if(temp_new_target > id(stooklijn_target)) temp_new_target = id(stooklijn_target);        //make sure value is below minimum, or above maximum
               ESP_LOGD("anti-pendel", "RETURN_TEMP: %f OUTLET_TEMP: %f TARGET: %f PENDEL_TARGET: %f",id(water_temp_retour).state,id(water_temp_aanvoer).state,id(stooklijn_target),temp_new_target);
@@ -314,7 +327,7 @@ sensor:
     name: "DHW tank"
     id: water_temp_dhw
     register_type: read
-    skip_updates: 4
+    skip_updates: 3
     address: 5
     unit_of_measurement: "°C"
     value_type: U_WORD
@@ -326,6 +339,7 @@ sensor:
     name: "Tempbinnen"
     id: binnen_temp
     register_type: read
+    skip_updates: 3
     address: 7
     unit_of_measurement: "°C"
     value_type: U_WORD
@@ -348,6 +362,7 @@ sensor:
     name: "Tempbuiten"
     id: buiten_temp
     register_type: read
+    skip_updates: 3
     address: 12
     unit_of_measurement: "°C"
     value_type: U_WORD
@@ -364,7 +379,7 @@ sensor:
     unit_of_measurement: "°C"
     value_type: U_WORD
     accuracy_decimals: 1
-    skip_updates: 3
+    skip_updates: 1
     filters:
       - multiply: 0.1
   - platform: modbus_controller
@@ -376,7 +391,7 @@ sensor:
     unit_of_measurement: "°C"
     value_type: U_WORD
     accuracy_decimals: 1
-    skip_updates: 3
+    skip_updates: 6
     filters:
       - multiply: 0.1
 
