@@ -229,7 +229,7 @@ sensor:
 
             
             static float prev_oat = 0;                                 // hold previous script run ota value to check if it changed since last run
-            // static int pre_run_time = 0;                               //pre run time
+            static float prev_tr = 0;
             float temp_new_target = id(watertemp_target).state;   //new anti-pendel target
             static bool target_reached = false;                        //system logic (to switch off after target is reached)
             
@@ -288,10 +288,17 @@ sensor:
                 // ----------------------------------Run when compressor is running---------------------------------
             if(id(compressor_running).state){
               if(!target_reached){
+                
+                float tmp_retour = id(water_temp_retour).state - prev_tr;
+
+                if(tmp_retour > 0 || tmp_retour < -1){        //retour temp sometimes drops by less than 1 degrC only one measurement
+                  // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
+                  temp_new_target = round((id(water_temp_retour).state + (5*(id(water_temp_retour).state - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
+                  if((temp_new_target-id(water_temp_retour).state) < 1) temp_new_target = id(water_temp_retour).state + 1;
+                  prev_tr = id(water_temp_retour).state;
+                }
+
                 // temp_new_target = round((id(water_temp_retour).state + id(water_temp_aanvoer).state) / 2 * 10) / 10;
-                // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
-                temp_new_target = round((id(water_temp_retour).state + (5*(id(water_temp_retour).state - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
-                if((temp_new_target-id(water_temp_retour).state) < 2) temp_new_target = id(water_temp_retour).state + 2;
                 // if((id(water_temp_aanvoer).state - temp_new_target) > 3) temp_new_target += 0.5;
                 // if((id(water_temp_aanvoer).state - id(stooklijn_target)) > 2) temp_new_target = id(water_temp_aanvoer).state - 2;
               } else temp_new_target = id(stooklijn_target);
