@@ -102,6 +102,15 @@ number:
   #       - lambda: |-
   #           id(force_update_stooklijn) = true;
 
+switch:
+  - platform: output
+    name: "Silent Mode"
+    id: silent_mode_switch
+    output: 'modbus_set_silent_mode'
+  - platform: template
+    id: stooklijn_on_off
+    name: "Stooklijn On/Off"
+    optimistic: true
 
 
 modbus:
@@ -111,8 +120,8 @@ modbus:
   
 uart:
   id: uart_modbus
-  tx_pin: GPIO12
-  rx_pin: GPIO13
+  tx_pin: GPIO16
+  rx_pin: GPIO17
   baud_rate: 9600
   parity: none
   data_bits: 8
@@ -133,11 +142,11 @@ output:
     address: 2
     value_type: U_WORD
     multiply: 1000
-  # - platform: modbus_controller
-  #   modbus_controller_id: lg
-  #   id: modbus_set_silent_mode
-  #   register_type: coil
-  #   address: 2
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    id: modbus_set_silent_mode
+    register_type: coil
+    address: 2
 
 binary_sensor:
   - platform: modbus_controller
@@ -172,13 +181,17 @@ binary_sensor:
     register_type: discrete_input
     skip_updates: 3
     address: 5
-  # - platform: modbus_controller
-  #   modbus_controller_id: lg
-  #   name: "Silent Mode"
-  #   id: silent_mode
-  #   register_type: discrete_input
-  #   skip_updates: 3
-  #   address: 7
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "Silent Mode"
+    id: silent_mode
+    register_type: discrete_input
+    skip_updates: 3
+    address: 7
+    on_state:
+      then:
+        - lambda: |-
+            if(id(silent_mode).state != id(silent_mode_switch).state) id(silent_mode_switch).publish_state(id(silent_mode).state);
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "Cooling mode"
@@ -226,6 +239,7 @@ sensor:
             //Do not run script if working mode = 0
             if(id(bedrijfsmodus).state != 2 || id(dhw_mode).state) return;
             if(isnan(id(buiten_temp).state)) return;
+            if(!id(stooklijn_on_off).state) return;
 
             
             static float prev_oat = 0;                                 // hold previous script run ota value to check if it changed since last run
@@ -293,7 +307,7 @@ sensor:
                 if(tmp_retour >= 0 || tmp_retour < -1){        //retour temp sometimes drops by less than 1 degrC only one measurement
                   // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
                   temp_new_target = round((id(water_temp_retour).state + (5*(id(water_temp_retour).state - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
-                  if((temp_new_target-id(water_temp_retour).state) < 1) temp_new_target = id(water_temp_retour).state + 1;
+                  if((temp_new_target-id(water_temp_retour).state) < 2) temp_new_target = id(water_temp_retour).state + 2;
                   prev_tr = id(water_temp_retour).state;
                 } else {
                   temp_new_target = round((prev_tr + (5*(prev_tr - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
