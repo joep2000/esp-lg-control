@@ -306,7 +306,7 @@ sensor:
 
                 if(tmp_retour >= 0 || tmp_retour < -1){        //retour temp sometimes drops by less than 1 degrC only one measurement
                   // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
-                  temp_new_target = round((id(water_temp_retour).state + (6*(id(water_temp_retour).state - 19)) / (id(stooklijn_target) - 26)) * 10 ) / 10;
+                  temp_new_target = round((id(water_temp_retour).state + (6*(id(water_temp_retour).state - 22)) / (id(stooklijn_target) - 27)) * 10 ) / 10;
                   if((temp_new_target-id(water_temp_retour).state) < 3) temp_new_target = id(water_temp_retour).state + 3;
                   prev_tr = id(water_temp_retour).state;
                 } else {
