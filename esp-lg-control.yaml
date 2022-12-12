@@ -306,11 +306,11 @@ sensor:
 
                 if(tmp_retour >= 0 || tmp_retour < -1){        //retour temp sometimes drops by less than 1 degrC only one measurement
                   // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
-                  temp_new_target = round((id(water_temp_retour).state + (6*(id(water_temp_retour).state - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
+                  temp_new_target = round((id(water_temp_retour).state + (6*(id(water_temp_retour).state - 17)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
                   if((temp_new_target-id(water_temp_retour).state) < 3) temp_new_target = id(water_temp_retour).state + 3;
                   prev_tr = id(water_temp_retour).state;
                 } else {
-                  temp_new_target = round((prev_tr + (6*(prev_tr - 20)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
+                  temp_new_target = round((prev_tr + (6*(prev_tr - 17)) / (id(stooklijn_target) - 25)) * 10 ) / 10;
                   if((temp_new_target-prev_tr) < 3) temp_new_target = prev_tr + 3;
                 }
 
@@ -382,13 +382,25 @@ sensor:
     name: "Tempbuiten"
     id: buiten_temp
     register_type: read
-    skip_updates: 3
+    skip_updates: 6
     address: 12
     unit_of_measurement: "°C"
-    value_type: U_WORD
+    value_type: S_WORD
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+      - sliding_window_moving_average:
+          window_size: 15 
+          send_every: 15    
+  - platform: modbus_controller
+    modbus_controller_id: lg
+    name: "Compressor RPM"
+    id: compressor_rpm
+    register_type: read
+    address: 24
+    unit_of_measurement: "RPM"
+    value_type: U_WORD
+    accuracy_decimals: 0
 
   - platform: modbus_controller
     modbus_controller_id: lg
