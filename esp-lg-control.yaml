@@ -32,6 +32,20 @@ globals:
 
 number:
   - platform: template
+    id: stooklijn_offset
+    name: "Stooklijn Offset"
+    min_value: -5
+    max_value: 5
+    step: 1
+    restore_value: yes
+    initial_value: 0
+    unit_of_measurement: "°C"
+    optimistic: true
+    set_action:
+      then:
+        - lambda: |-
+            id(force_update_stooklijn) = true;
+  - platform: template
     id: stooklijn_min_oat
     name: "Stooklijn Minimum Buitentemperatuur"
     min_value: -15
@@ -164,10 +178,6 @@ binary_sensor:
     register_type: discrete_input
     skip_updates: 3
     address: 3
-    # on_turn_on:
-    #   then:
-    #     - lambda: |-
-    #         id(run_start) = true;
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "Defrosting"
@@ -266,7 +276,7 @@ sensor:
               } else if(oat > id(stooklijn_max_oat).state) {                //if oat above max value, clamp to maximum value
                 oat = id(stooklijn_max_oat).state;
               }
-              id(stooklijn_target) = (int)round(Z * (oat - id(stooklijn_min_oat).state) + id(stooklijn_max_wtemp).state);
+              id(stooklijn_target) = (int)round(Z * (oat - id(stooklijn_min_oat).state) + id(stooklijn_max_wtemp).state) + id(stooklijn_offset).state;
               // if(id(stooklijn_target) > id(stooklijn_max_wtemp).state) id(stooklijn_target) = id(stooklijn_max_wtemp).state;  #not necessary
               // if(id(stooklijn_target) < id(stooklijn_min_wtemp).state) id(stooklijn_target) = id(stooklijn_min_wtemp).state;
               
@@ -278,7 +288,7 @@ sensor:
 
             // ---------------------calculate new (anti pendel) target---------------------------------
             
-            if(((id(stooklijn_target) - id(water_temp_aanvoer).state) > 0) ){; //|| (id(water_temp_aanvoer).state-id(water_temp_retour).state > 5)){           // check if target is reached
+            if(((id(stooklijn_target) - id(water_temp_aanvoer).state) > 0) || (id(water_temp_aanvoer).state-id(water_temp_retour).state > 5)){           // check if target is reached
               target_reached = false;
             } else {
               target_reached = true;
@@ -300,10 +310,20 @@ sensor:
                 }
 
                 float d_stooklijn_Tr = id(stooklijn_target) - temp_Tr;
-                // // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
+                float defrost_factor = 3 - id(water_temp_aanvoer).state-temp_Tr; //after defrost Tr ~= Ta and target temp is too high. This is a correction factor
+
+                if(defrost_factor > 3){           //clamp factor
+                  defrost_factor = 3;
+                } 
+                elseif(defrost_factor < 0){
+                  defrost_factor = 0;
+                } 
+
+                // ..OLD.. // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
                 // temp_new_target = round((temp_Tr + (5*(temp_Tr - 20)) / (id(stooklijn_target) - 27)) * 10 ) / 10;
-                temp_new_target = round((   temp_Tr + 12/(d_stooklijn_Tr-3)   )*10)/10;
-                if((temp_new_target-temp_Tr) < 3) temp_new_target = temp_Tr + 3;
+                
+                temp_new_target = round((   temp_Tr + 12/(d_stooklijn_Tr-3) - defrost_factor   )*10)/10;
+                if((temp_new_target-temp_Tr) < 2) temp_new_target = temp_Tr + 2;
 
               } else temp_new_target = id(stooklijn_target);
 
