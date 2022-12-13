@@ -111,6 +111,7 @@ switch:
     id: stooklijn_on_off
     name: "Stooklijn On/Off"
     optimistic: true
+    restore_state: true
 
 
 modbus:
@@ -275,44 +276,34 @@ sensor:
           
 
 
-                // ---------------------calculate new (anti pendel) target---------------------------------
-
-                // very basic algorithm
-                // it initializes at the start of a run (at compressor startup)
-                // when the compressor turn on the logic start running, setting a new target at the nearest higher .5 degrees
-                // when the new target equals the new target the logic stops, so the HP can take over again and run its own logic
-                // system resets at compressor stop
-
-            // if(id(run_start)){
-            //       //initialize values. run_start is set to true by the switches that control heating/cooling mode
-            //   # pre_run_time = 7;                                  // equals 70 seconds. Based on 10s 'clock'
-            //   target_reached = false;                           //activate system
-            //   # id(water_temp_target_output).set_level(id(stooklijn_target)*0.01);        //(set level needs value between 0-1, so divide by 100)
-            //   ESP_LOGD("anti-pendel", "Modbus initial target set: %f outlet: %f",id(stooklijn_target),id(water_temp_aanvoer).state);
-            //   id(run_start) = 0;
-            // }
+            // ---------------------calculate new (anti pendel) target---------------------------------
             
-            if(((id(stooklijn_target) - id(water_temp_aanvoer).state) > 0) || (id(water_temp_aanvoer).state-id(water_temp_retour).state > 5)){           // check if target is reached
+            if(((id(stooklijn_target) - id(water_temp_aanvoer).state) > 0) ){; //|| (id(water_temp_aanvoer).state-id(water_temp_retour).state > 5)){           // check if target is reached
               target_reached = false;
             } else {
               target_reached = true;
             }
 
-                // ----------------------------------Run when compressor is running---------------------------------
+            // ----------------------------------Run when compressor is running---------------------------------
+
             if(id(compressor_running).state){
               if(!target_reached){
                 
-                float tmp_retour = id(water_temp_retour).state - prev_tr;
+                float temp_Tr = id(water_temp_retour).state;
+                float d_prev_Tr = temp_Tr - prev_tr;
 
-                if(tmp_retour >= 0 || tmp_retour < -1){        //retour temp sometimes drops by less than 1 degrC only one measurement
-                  // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
-                  temp_new_target = round((id(water_temp_retour).state + (6*(id(water_temp_retour).state - 22)) / (id(stooklijn_target) - 27)) * 10 ) / 10;
-                  if((temp_new_target-id(water_temp_retour).state) < 3) temp_new_target = id(water_temp_retour).state + 3;
-                  prev_tr = id(water_temp_retour).state;
+
+                if(d_prev_Tr >= 0 || d_prev_Tr < -1){        //retour temp sometimes drops by less than 1 degrC only one measurement
+                  prev_tr = temp_Tr;
                 } else {
-                  temp_new_target = round((prev_tr + (6*(prev_tr - 19)) / (id(stooklijn_target) - 26)) * 10 ) / 10;
-                  if((temp_new_target-prev_tr) < 3) temp_new_target = prev_tr + 3;
+                  temp_Tr = prev_tr;
                 }
+
+                float d_stooklijn_Tr = id(stooklijn_target) - temp_Tr;
+                // // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
+                // temp_new_target = round((temp_Tr + (5*(temp_Tr - 20)) / (id(stooklijn_target) - 27)) * 10 ) / 10;
+                temp_new_target = round((   temp_Tr + 12/(d_stooklijn_Tr-3)   )*10)/10;
+                if((temp_new_target-temp_Tr) < 3) temp_new_target = temp_Tr + 3;
 
               } else temp_new_target = id(stooklijn_target);
 
@@ -324,24 +315,9 @@ sensor:
             } else if(!id(compressor_running).state) {
               id(water_temp_target_output).set_level(id(stooklijn_target)*0.01);                        //(set level needs value between 0-1, so divide by 100)
               target_reached = false;
-              //update pre_run_time counter
-              //ESP_LOGD("anti-pendel", "Waiting for pre_run_time: %i",pre_run_time);
-              //if(pre_run_time > 0) pre_run_time--;
-
             }
           
 
-            // if(temp_new_target != id(var_pendel_watertemp_target)){
-            //   id(var_pendel_watertemp_target) = temp_new_target;                                       //set new target
-            //   id(pendel_watertemp_target).publish_state(id(var_pendel_watertemp_target));              //update sensor
-            //   id(water_temp_target_output).set_level(id(var_pendel_watertemp_target)*0.01);            //update target through modbus (set level needs value between 0-1, so divide by 100)
-            //   // ESP_LOGD("anti-pendel", "New pendel_watertemp_target set: %f outlet: %f",id(pendel_watertemp_target).state,id(water_temp_aanvoer).state);
-            //   # if(temp_new_target == id(stooklijn_target)){
-            //   #       //deactive system logic until next run
-            //   #   target_reached = true;
-            //   #   ESP_LOGD("anti-pendel", "Target reached, system inactive target: %f pendel_target: %f",id(stooklijn_target),id(pendel_watertemp_target).state);
-            //   # }
-            // }
   - platform: modbus_controller
     modbus_controller_id: lg
     name: "DHW tank"
