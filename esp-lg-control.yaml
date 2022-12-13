@@ -310,12 +310,12 @@ sensor:
                 }
 
                 float d_stooklijn_Tr = id(stooklijn_target) - temp_Tr;
-                float defrost_factor = 3 - id(water_temp_aanvoer).state-temp_Tr; //after defrost Tr ~= Ta and target temp is too high. This is a correction factor
+                float defrost_factor = 3 - id(water_temp_aanvoer).state-temp_Tr; //This is a correction factor after defrost where dT is low and Tr is still high
 
                 if(defrost_factor > 3){           //clamp factor
                   defrost_factor = 3;
                 } 
-                elseif(defrost_factor < 0){
+                else if(defrost_factor < 0){
                   defrost_factor = 0;
                 } 
 
