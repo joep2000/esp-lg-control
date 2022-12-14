@@ -310,10 +310,10 @@ sensor:
                 }
 
                 float d_stooklijn_Tr = id(stooklijn_target) - temp_Tr;
-                float defrost_factor = 2 - id(water_temp_aanvoer).state-temp_Tr; //This is a correction factor after defrost where dT is low and Tr is still high
+                float defrost_factor = 3 - (id(water_temp_aanvoer).state-temp_Tr); //This is a correction factor after defrost where dT is low and Tr is still high
 
-                if(defrost_factor > 2){           //clamp factor
-                  defrost_factor = 2;
+                if(defrost_factor > 3){           //clamp factor
+                  defrost_factor = 3;
                 } 
                 else if(defrost_factor < 0){
                   defrost_factor = 0;
@@ -322,7 +322,7 @@ sensor:
                 // ..OLD.. // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
                 // temp_new_target = round((temp_Tr + (5*(temp_Tr - 20)) / (id(stooklijn_target) - 27)) * 10 ) / 10;
                 
-                temp_new_target = round((   temp_Tr + 16/(d_stooklijn_Tr-4) - defrost_factor   )*10)/10;
+                temp_new_target = round((   temp_Tr + 12/(d_stooklijn_Tr-3) - defrost_factor   )*10)/10;
                 if((temp_new_target-temp_Tr) < 3) temp_new_target = temp_Tr + 3;
 
               } else temp_new_target = id(stooklijn_target);
