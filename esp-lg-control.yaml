@@ -312,8 +312,8 @@ sensor:
                 float d_stooklijn_Tr = id(stooklijn_target) - temp_Tr;
                 float defrost_factor = 3 - (id(water_temp_aanvoer).state-temp_Tr); //This is a correction factor after defrost where dT is low and Tr is still high
 
-                if(defrost_factor > 3){           //clamp factor
-                  defrost_factor = 3;
+                if(defrost_factor > 2){           //clamp factor
+                  defrost_factor = 2;
                 } 
                 else if(defrost_factor < 0){
                   defrost_factor = 0;
@@ -322,13 +322,14 @@ sensor:
                 // ..OLD.. // new target = Tr + 5*(Tr-20)/(Tstooklijn-5-20) (5 graden dT | ~20 graden start temp)
                 // temp_new_target = round((temp_Tr + (5*(temp_Tr - 20)) / (id(stooklijn_target) - 27)) * 10 ) / 10;
                 
-                temp_new_target = round((   temp_Tr + 12/(d_stooklijn_Tr-3) - defrost_factor   )*10)/10;
+                temp_new_target = round((   temp_Tr + 35/(d_stooklijn_Tr) - defrost_factor   )*10)/10;
                 if((temp_new_target-temp_Tr) < 3) temp_new_target = temp_Tr + 3;
 
               } else temp_new_target = id(stooklijn_target);
 
-
               if(temp_new_target > id(stooklijn_target)) temp_new_target = id(stooklijn_target);        //make sure value is below minimum, or above maximum
+
+
               ESP_LOGD("anti-pendel", "RETURN_TEMP: %f OUTLET_TEMP: %f TARGET: %f PENDEL_TARGET: %f",id(water_temp_retour).state,id(water_temp_aanvoer).state,id(stooklijn_target),temp_new_target);
               id(pendel_watertemp_target).publish_state(temp_new_target);                               //update sensor
               id(water_temp_target_output).set_level(temp_new_target*0.01);             //update target through modbus (set level needs value between 0-1, so divide by 100)
